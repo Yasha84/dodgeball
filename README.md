@@ -1,1 +1,1 @@
-[# dodgeball](https://yasha84.github.io/dodgeball/)
+https://yasha84.github.io/dodgeball/
