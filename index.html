@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>スコア管理</title>
+
+  <!-- スマホ対応 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 10px;
+    }
+
+    h2 {
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+    }
+
+    select {
+      font-size: 1rem;
+      padding: 4px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+
+    table {
+      border-collapse: collapse;
+      min-width: 600px;
+      width: 100%;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px 8px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    th {
+      background: #f5f5f5;
+    }
+
+    input[type="number"] {
+      width: 60px;
+      font-size: 1rem;
+    }
+
+    /* ★ 無限リサイズ防止の要 ★ */
+    .chart-wrap {
+      width: 100%;
+      height: 300px;
+    }
+
+    .chart-wrap canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+  </style>
+</head>
+<body>
+
+<h2>スコア管理（8時〜24時）</h2>
+
+<p>
+  相手の初期 得点力：
+  <select id="enemyLevel">
+    <option value="1">Lv1（+1Pt/h）</option>
+    <option value="2">Lv2（+3Pt/h）</option>
+    <option value="3">Lv3（+5Pt/h）</option>
+    <option value="4">Lv4（+10Pt/h）</option>
+    <option value="5">Lv5（+15Pt/h）</option>
+    <option value="6" selected>Lv6（+30Pt/h）</option>
+  </select>
+</p>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>時刻</th>
+        <th>自分<br>(このターン)</th>
+        <th>自分<br>(累積)</th>
+        <th>相手<br>(このターン)</th>
+        <th>相手<br>(累積)</th>
+      </tr>
+    </thead>
+    <tbody id="scoreTable"></tbody>
+  </table>
+</div>
+
+<div class="chart-wrap">
+  <canvas id="scoreChart"></canvas>
+</div>
+
+<script>
+// 得点力Lv → 増加Pt
+const enemyPowerTable = {
+  1: 1,
+  2: 3,
+  3: 5,
+  4: 10,
+  5: 15,
+  6: 30
+};
+
+// 8〜24時（17ターン）
+const hours = Array.from({ length: 17 }, (_, i) => `${8 + i}時`);
+const turns = hours.length;
+
+const myTurn = Array(turns).fill(0);
+const myTotal = Array(turns).fill(0);
+const enemyTurn = Array(turns).fill(0);
+const enemyTotal = Array(turns).fill(0);
+
+const tableBody = document.getElementById("scoreTable");
+
+// 表生成
+hours.forEach((h, i) => {
+  const is24 = (i === turns - 1);
+
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td>${h}</td>
+    <td>${is24 ? "—" : `<input type="number" min="0" inputmode="numeric" data-index="${i}">`}</td>
+    <td id="my-total-${i}">0</td>
+    <td id="enemy-turn-${i}">0</td>
+    <td id="enemy-total-${i}">0</td>
+  `;
+  tableBody.appendChild(tr);
+});
+
+// グラフ
+const chart = new Chart(document.getElementById("scoreChart"), {
+  type: "line",
+  data: {
+    labels: hours,
+    datasets: [
+      {
+        label: "自分（累積）",
+        data: myTotal,
+        borderWidth: 2
+      },
+      {
+        label: "相手（累積）",
+        data: enemyTotal,
+        borderWidth: 2
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false, // ← 親要素で高さ管理
+    scales: {
+      y: { beginAtZero: true }
+    }
+  }
+});
+
+// 入力イベント
+document.addEventListener("input", e => {
+  if (e.target.type === "number") {
+    const i = Number(e.target.dataset.index);
+    myTurn[i] = Number(e.target.value || 0);
+    recalc();
+  }
+});
+
+document.getElementById("enemyLevel").addEventListener("change", recalc);
+
+// 再計算
+function recalc() {
+  let mySum = 0;
+  let enemySum = 0;
+  const startLevel = Number(document.getElementById("enemyLevel").value);
+
+  for (let i = 0; i < turns; i++) {
+    // 自分
+    mySum += myTurn[i];
+    myTotal[i] = mySum;
+    document.getElementById(`my-total-${i}`).textContent = mySum;
+
+    // 相手
+    if (i === 0) {
+      enemyTurn[i] = 0; // 8時は得点なし
+    } else {
+      const prevMySum = mySum - myTurn[i];
+      const levelDown = Math.floor(prevMySum / 30);
+      const enemyLevel = Math.max(1, startLevel - levelDown);
+      enemyTurn[i] = enemyPowerTable[enemyLevel];
+    }
+
+    enemySum += enemyTurn[i];
+    enemyTotal[i] = enemySum;
+
+    document.getElementById(`enemy-turn-${i}`).textContent = enemyTurn[i];
+    document.getElementById(`enemy-total-${i}`).textContent = enemySum;
+  }
+
+  chart.update();
+}
+</script>
+
+</body>
+</html>
